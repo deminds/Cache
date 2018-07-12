@@ -8,7 +8,7 @@ namespace GH.DD.Cache
         private readonly DateTime? _expireDateTime = null;
         private readonly CacheEntryOptions _options;
         
-        public string Key { private set; get;  }
+        public string Key { private set; get; }
         public object Value { private set; get; }
         
         public bool IsAutoDeleted => _options.IsAutoDeleted;

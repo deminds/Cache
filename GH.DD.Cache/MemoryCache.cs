@@ -2,8 +2,12 @@
 
 namespace GH.DD.Cache
 {
+    // TODO: tests
+    // TODO: comments
+    // TODO: docs
     public class MemoryCache : ICache
     {
+        // TODO: to ConcurentDictionary
         private Dictionary<string, ICacheEntry> data;
         private object _locker = new object();
         
