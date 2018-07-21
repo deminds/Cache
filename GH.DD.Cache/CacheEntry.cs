@@ -3,21 +3,30 @@ using System.Threading.Tasks;
 
 namespace GH.DD.Cache
 {
+    /// <summary>
+    /// Cache entry placed in cache object by key
+    /// </summary>
     public class CacheEntry : ICacheEntry
     {
-        private DateTime? _expireDateTime = null;
+        private DateTime? _expireDateTime;
         private readonly CacheEntryOptions _options;
         
         private readonly object _locker = new object();
         private bool _isRunningBeforeDeleteCallback;
         
+        /// <inheritdoc cref="ICacheEntry.Key"/>
         public object Key { private set; get; }
+        
+        /// <inheritdoc cref="ICacheEntry.Value"/>
         public object Value { private set; get; }
         
+        /// <inheritdoc cref="ICacheEntry.IsAutoDeleted"/>
         public bool IsAutoDeleted => _options.IsAutoDeleted;
 
+        /// <inheritdoc cref="ICacheEntry.IsExpired"/>
         public bool IsExpired()
         {
+            // Prolong expire period on execution time of BeforeDeleteCallback
             if (!_options.IsAutoDeleted && _isRunningBeforeDeleteCallback)
                 return false;
                 
@@ -27,6 +36,12 @@ namespace GH.DD.Cache
             return DateTime.Now > _expireDateTime.Value;
         }
 
+        /// <summary>
+        /// Constructor for create new cache entry
+        /// </summary>
+        /// <param name="key">Key of cache</param>
+        /// <param name="value">Value of cache</param>
+        /// <param name="options"><see cref="CacheEntryOptions"/> of <see cref="CacheEntry"/></param>
         public CacheEntry(object key, object value, CacheEntryOptions options)
         {
             Key = key ?? throw new ArgumentNullException(nameof(key));
@@ -39,6 +54,7 @@ namespace GH.DD.Cache
                 _expireDateTime = DateTime.Now + options.Ttl;
         }
 
+        /// <inheritdoc cref="ICacheEntry.UpdateValue"/>
         public void UpdateValue(object value)
         {
             if (Value.GetType() != value.GetType())
@@ -53,6 +69,7 @@ namespace GH.DD.Cache
             }
         }
 
+        /// <inheritdoc cref="ICacheEntry.ExecuteBeforeDeleteCallback"/>
         public void ExecuteBeforeDeleteCallback()
         {
             if (_options.BeforeDeleteCallback == null)
@@ -64,6 +81,7 @@ namespace GH.DD.Cache
             task.ContinueWith((t) => _isRunningBeforeDeleteCallback = false);
         }
         
+        /// <inheritdoc cref="ICacheEntry.ExecuteAfterDeleteCallback"/>
         public void ExecuteAfterDeleteCallback()
         {
             if (_options.AfterDeleteCallback == null) 
