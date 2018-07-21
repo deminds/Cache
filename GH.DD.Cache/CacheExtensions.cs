@@ -4,7 +4,7 @@ namespace GH.DD.Cache
 {
     public static class CacheExtensions
     {
-        public static TItem Get<TItem>(this ICache cache, string key)
+        public static TItem Get<TItem>(this ICache cache, object key)
         {
             var entry = cache.Get(key);
             if (entry == null)
@@ -13,7 +13,7 @@ namespace GH.DD.Cache
             return (TItem) entry;
         }
 
-        public static bool TryGet(this ICache cache, string key, out object value)
+        public static bool TryGet(this ICache cache, object key, out object value)
         {
             var entry = cache.Get(key);
             if (entry == null)
@@ -26,7 +26,7 @@ namespace GH.DD.Cache
             return true;
         }
 
-        public static bool TryGet<TItem>(this ICache cache, string key, out TItem value)
+        public static bool TryGet<TItem>(this ICache cache, object key, out TItem value)
         {
             var entry = cache.Get(key);
             if (entry == null)
@@ -39,13 +39,13 @@ namespace GH.DD.Cache
             return true;
         }
 
-        public static void Set<TItem>(this ICache cache, string key, TItem value)
+        public static void Set<TItem>(this ICache cache, object key, TItem value)
         {
             var entry = new CacheEntry(key, value, new CacheEntryOptions());
             cache.Set(key, entry);
         }
 
-        public static void Set<TItem>(this ICache cache, string key, TItem value, TimeSpan ttl)
+        public static void Set<TItem>(this ICache cache, object key, TItem value, TimeSpan ttl)
         {
             var entryOptions = new CacheEntryOptions()
             {
@@ -57,7 +57,7 @@ namespace GH.DD.Cache
             cache.Set(key, entry);
         }
         
-        public static void Set<TItem>(this ICache cache, string key, TItem value, TimeSpan ttl,
+        public static void Set<TItem>(this ICache cache, object key, TItem value, TimeSpan ttl,
             BeforeDeleteDelegate beforeDeleteDelegate, bool isAutoDeleted = true)
         {
             var entryOptions = new CacheEntryOptions()
@@ -72,7 +72,7 @@ namespace GH.DD.Cache
             cache.Set(key, entry);
         }
 
-        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric, CacheEntryOptions options)
+        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric, CacheEntryOptions options)
         {
             if (cache.TryGet<TItem>(key, out var value))
                 return value;
@@ -83,7 +83,7 @@ namespace GH.DD.Cache
             return value;
         }
         
-        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
+        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric,
             TimeSpan ttl)
         {
             var options = new CacheEntryOptions()
@@ -94,7 +94,7 @@ namespace GH.DD.Cache
             return cache.GetOrCreate(key, fabric, options);
         }
 
-        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
+        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric,
             TimeSpan ttl, BeforeDeleteDelegate beforeDeleteCallback, bool isAutoDeleted = true)
         {
             var options = new CacheEntryOptions()

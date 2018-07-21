@@ -8,7 +8,7 @@ namespace GH.DD.Cache
         private readonly DateTime? _expireDateTime = null;
         private readonly CacheEntryOptions _options;
         
-        public string Key { private set; get; }
+        public object Key { private set; get; }
         public object Value { private set; get; }
         
         public bool IsAutoDeleted => _options.IsAutoDeleted;
@@ -21,33 +21,40 @@ namespace GH.DD.Cache
             return DateTime.Now > _expireDateTime.Value;
         }
 
-        public CacheEntry(string key, object value, CacheEntryOptions options)
+        public CacheEntry(object key, object value, CacheEntryOptions options)
         {
-            Key = string.IsNullOrWhiteSpace(key) 
-                    ? throw new ArgumentNullException(nameof(key)) 
-                    : key;
+            Key = key ?? throw new ArgumentNullException(nameof(key));
             Value = value ?? throw new ArgumentNullException(nameof(value));
             _options = options;
 
-            if (options == null)
-                throw new ArgumentNullException(nameof(options));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
 
             if (options.Ttl != null)
                 _expireDateTime = DateTime.Now + options.Ttl;
         }
 
+        public void UpdateValue(object value)
+        {
+            if (Value.GetType() != value.GetType())
+                throw new ArgumentNullException(nameof(value)); 
+                
+            Value = value;
+        }
+
         public void ExecuteBeforeDeleteCallback()
         {
-            if (_options.BeforeDeleteCallback == null) return;
+            if (_options.BeforeDeleteCallback == null)
+                return;
             
-            new Task(_options.BeforeDeleteCallback(Key, Value)).Start();
+            new Task(_options.BeforeDeleteCallback(this)).Start();
         }
         
         public void ExecuteAfterDeleteCallback()
         {
-            if (_options.AfterDeleteCallback == null) return;
+            if (_options.AfterDeleteCallback == null) 
+                return;
             
-            new Task(_options.AfterDeleteCallback(Key, Value)).Start();
+            new Task(_options.AfterDeleteCallback(this)).Start();
         }
     }
 }

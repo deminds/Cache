@@ -8,10 +8,10 @@ namespace GH.DD.Cache
     public class MemoryCache : ICache
     {
         // TODO: to ConcurentDictionary
-        private Dictionary<string, ICacheEntry> data;
+        private Dictionary<object, ICacheEntry> data;
         private object _locker = new object();
         
-        public ICacheEntry Get(string key)
+        public ICacheEntry Get(object key)
         {
             if (!data.ContainsKey(key))
                 return null;
@@ -24,12 +24,12 @@ namespace GH.DD.Cache
             return entry.IsAutoDeleted ? null : entry;
         }
 
-        public void Set(string key, ICacheEntry entry)
+        public void Set(object key, ICacheEntry entry)
         {
             data.Add(key, entry);
         }
 
-        private void RemoveEntry(string key)
+        private void RemoveEntry(object key)
         {
             if (!data.ContainsKey(key))
                 return;

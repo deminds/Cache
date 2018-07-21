@@ -2,7 +2,7 @@
 {
     public interface ICache
     {
-        ICacheEntry Get(string key);
-        void Set(string key, ICacheEntry entry);
+        ICacheEntry Get(object key);
+        void Set(object key, ICacheEntry entry);
     }
 }
