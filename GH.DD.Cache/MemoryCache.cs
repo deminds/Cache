@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
 
 namespace GH.DD.Cache
 {
@@ -7,16 +7,12 @@ namespace GH.DD.Cache
     // TODO: docs
     public class MemoryCache : ICache
     {
-        // TODO: to ConcurentDictionary
-        private Dictionary<object, ICacheEntry> data;
-        private object _locker = new object();
+        private ConcurrentDictionary<object, ICacheEntry> data;
         
         public ICacheEntry Get(object key)
         {
-            if (!data.ContainsKey(key))
+            if (!data.TryGetValue(key, out var entry))
                 return null;
-
-            var entry = data[key];
 
             if (entry.IsExpired())
                 RemoveEntry(key);
@@ -26,18 +22,19 @@ namespace GH.DD.Cache
 
         public void Set(object key, ICacheEntry entry)
         {
-            data.Add(key, entry);
+            data.AddOrUpdate(key, entry, (k, oldEntry) => entry);
         }
 
         private void RemoveEntry(object key)
         {
-            if (!data.ContainsKey(key))
+            if (!data.TryGetValue(key, out var entry))
                 return;
-
-            var entry = data[key];
             
             entry.ExecuteBeforeDeleteCallback();
-            if (entry.IsAutoDeleted) data.Remove(key);
+            
+            if (entry.IsAutoDeleted)
+                data.TryRemove(key, out entry);
+            
             entry.ExecuteAfterDeleteCallback();
         }
     }

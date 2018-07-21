@@ -5,8 +5,9 @@ namespace GH.DD.Cache
 {
     public class CacheEntry : ICacheEntry
     {
-        private readonly DateTime? _expireDateTime = null;
+        private DateTime? _expireDateTime = null;
         private readonly CacheEntryOptions _options;
+        private readonly object _locker = new object();
         
         public object Key { private set; get; }
         public object Value { private set; get; }
@@ -36,9 +37,15 @@ namespace GH.DD.Cache
         public void UpdateValue(object value)
         {
             if (Value.GetType() != value.GetType())
-                throw new ArgumentNullException(nameof(value)); 
-                
-            Value = value;
+                throw new ArgumentNullException(nameof(value));
+            
+            if (_options.Ttl != null)
+                _expireDateTime = DateTime.Now + _options.Ttl;
+
+            lock (_locker)
+            {
+                Value = value;
+            }
         }
 
         public void ExecuteBeforeDeleteCallback()
