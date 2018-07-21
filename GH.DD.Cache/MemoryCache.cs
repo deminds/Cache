@@ -8,14 +8,18 @@ namespace GH.DD.Cache
     public class MemoryCache : ICache
     {
         private ConcurrentDictionary<object, ICacheEntry> data;
+        private readonly object _locker = new object();
         
         public ICacheEntry Get(object key)
         {
             if (!data.TryGetValue(key, out var entry))
                 return null;
 
-            if (entry.IsExpired())
-                RemoveEntry(key);
+            lock (_locker)
+            {
+                if (entry.IsExpired())
+                    RemoveEntry(key);
+            }
 
             return entry.IsAutoDeleted ? null : entry;
         }

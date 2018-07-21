@@ -7,7 +7,9 @@ namespace GH.DD.Cache
     {
         private DateTime? _expireDateTime = null;
         private readonly CacheEntryOptions _options;
+        
         private readonly object _locker = new object();
+        private bool _isRunningBeforeDeleteCallback;
         
         public object Key { private set; get; }
         public object Value { private set; get; }
@@ -16,6 +18,9 @@ namespace GH.DD.Cache
 
         public bool IsExpired()
         {
+            if (!_options.IsAutoDeleted && _isRunningBeforeDeleteCallback)
+                return false;
+                
             if (!_expireDateTime.HasValue)
                 return false;
 
@@ -52,8 +57,11 @@ namespace GH.DD.Cache
         {
             if (_options.BeforeDeleteCallback == null)
                 return;
-            
-            new Task(_options.BeforeDeleteCallback(this)).Start();
+
+            _isRunningBeforeDeleteCallback = true;
+            var task = new Task(_options.BeforeDeleteCallback(this));
+            task.Start();
+            task.ContinueWith((t) => _isRunningBeforeDeleteCallback = false);
         }
         
         public void ExecuteAfterDeleteCallback()
