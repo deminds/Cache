@@ -76,7 +76,7 @@ namespace GH.DD.Cache
                 return;
 
             _isRunningBeforeDeleteCallback = true;
-            var task = new Task(_options.BeforeDeleteCallback(this));
+            var task = Task.Run(() => _options.BeforeDeleteCallback(this));
             task.Start();
             task.ContinueWith((t) => _isRunningBeforeDeleteCallback = false);
         }
@@ -87,7 +87,7 @@ namespace GH.DD.Cache
             if (_options.AfterDeleteCallback == null) 
                 return;
             
-            new Task(_options.AfterDeleteCallback(this)).Start();
+            Task.Run(() => _options.AfterDeleteCallback(this)).Start();
         }
     }
 }

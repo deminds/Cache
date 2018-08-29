@@ -99,7 +99,7 @@ namespace GH.DD.Cache
         /// <param name="beforeDeleteCallback">Callback for execute after <see cref="ttl"/> expired</param>
         /// <param name="isAutoDeleted">If is True then cache entry will be remove after <see cref="ttl"/> expired</param>
         public static void Set(this ICache cache, object key, object value, TimeSpan ttl,
-            BeforeDeleteDelegate beforeDeleteCallback, bool isAutoDeleted = true)
+            Action<ICacheEntry> beforeDeleteCallback, bool isAutoDeleted = true)
         {
             var entryOptions = new CacheEntryOptions()
             {
@@ -167,7 +167,7 @@ namespace GH.DD.Cache
         /// <typeparam name="TItem">Cast value to this Type</typeparam>
         /// <returns>Value of cache casted to <see cref="TItem"/></returns>
         public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric,
-            TimeSpan ttl, BeforeDeleteDelegate beforeDeleteCallback, bool isAutoDeleted = true)
+            TimeSpan ttl, Action<ICacheEntry> beforeDeleteCallback, bool isAutoDeleted = true)
         {
             var options = new CacheEntryOptions()
             {
