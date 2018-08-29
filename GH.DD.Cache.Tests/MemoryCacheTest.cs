@@ -1,100 +1,344 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
-using FluentAssertions;
 using NUnit.Framework;
 
 namespace GH.DD.Cache.Tests
 {
     public class MemoryCacheTest
     {
+        private const string FirstValueInCache = "FirstValue in cache";
+        private const string SecondValueInCache = "SecondValue in cache";
+        private const string NullValueInCache = "Null value in cache";
+        private const string StartUpdateValue = "Start update value";
+        private const string StopUpdateValue = "Stop update value";
+        
+        private int tsNow;
         private MemoryCache _cache;
-        private const string FirstCacheKey = "firstCacheKey";
-        private const string SecondCacheKey = "secondCacheKey";
-        private IReadOnlyDictionary<int, IList<int>> _firstValue = new Dictionary<int, IList<int>>
-        {
-            { 0, new List<int> {1,2,3}},
-            { 1, new List<int> {1,2,3}},
-            { 2, new List<int> {1,2,3}},
-            { 3, new List<int> {1,2,3}},
-            { 4, new List<int> {1,2,3}},
-        }; 
-        private IReadOnlyDictionary<int, IList<int>> _secondValue = new Dictionary<int, IList<int>>
-        {
-            { 0, new List<int> {1,2,3,4,5}},
-            { 1, new List<int> {1,2,3,4,5}},
-            { 2, new List<int> {1,2,3,4,5}},
-            { 3, new List<int> {1,2,3,4,5}},
-            { 4, new List<int> {1,2,3,4,5}},
-            { 5, new List<int> {1,2,3,4,5}},
-            { 6, new List<int> {1,2,3,4,5}},
-            { 7, new List<int> {1,2,3,4,5}},
-            { 8, new List<int> {1,2,3,4,5}},
-            { 9, new List<int> {1,2,3,4,5}},
-        }; 
+        private IReadOnlyDictionary<int, int> _firstValue;
+        private IReadOnlyDictionary<int, int> _secondValue;
+
+        private TimeSpan _updateCacheDelay;
+
+        private List<TestLogElement> _log;
+
+        private object _locker = new object();
+
+        private TimeSpan _maxRequestTime = TimeSpan.MinValue;
         
         [SetUp]
         public void Setup()
         {
             _cache = new MemoryCache();
+            tsNow = (int) (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+            
+            _firstValue = new Dictionary<int, int>
+            {
+                { 0, 1 },
+                { 1, tsNow },
+            }; 
+            _secondValue = new Dictionary<int, int>
+            {
+                { 10, tsNow },
+                { 11, 10 },
+                { 12, 20 },
+            }; 
+            
+            _log = new List<TestLogElement>();
         }
 
         [Test]
-        public void Test1()
+        [Order(1)]
+        public void InfinityReadWithOneUpdate()
         {
-            IReadOnlyDictionary<int, IList<int>> firstValue = new Dictionary<int, IList<int>>
-            {
-                { 0, new List<int> {1,2,3}},
-                { 1, new List<int> {1,2,3}},
-                { 2, new List<int> {1,2,3}},
-                { 3, new List<int> {1,2,3}},
-                { 4, new List<int> {1,2,3}},
-            }; 
-            _cache.Set(FirstCacheKey, firstValue, new TimeSpan(0,0,0,10));
-
-            var t1 = Task.Run(() => Test1_Thread());
-            var t2 = Task.Run(() => Test1_Thread());
-            var t3 = Task.Run(() => Test1_Thread());
-
-            Task.WaitAll(t1, t2, t3);
+            _log = new List<TestLogElement>();
+            _maxRequestTime = TimeSpan.MinValue;
             
-            Assert.Pass();
-        }
-
-        private void Test1_Thread()
-        {
-            Thread.Sleep(100);
-            if (!_cache.TryGet(FirstCacheKey, out var value))
-                Assert.Fail($"Value {FirstCacheKey} not found in cache");
-
-            for (int i = 1; i < 50; i++)
+            IReadOnlyDictionary<int, int> firstValue = new Dictionary<int, int>
             {
-                Thread.Sleep(100);
+                { 0, 1 },
+                { 1, tsNow },
+            };
+            _updateCacheDelay = TimeSpan.FromMilliseconds(3000);
+            
+            _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
+            
+            GenerateThreads(TestThreadInfinityRead, 200);
+            
+            // Check log
+            var message = $"Need handle check!!!\nMax Request Time: {_maxRequestTime.TotalMilliseconds}ms\n\n" +
+                          string.Join("\n", _log.Select(e => e));
+            var logCount = _log.Count;
+            if (logCount < 4)
+                Assert.Fail($"Log of events is not full\n\n{message}");
+            
+            if (_maxRequestTime > _updateCacheDelay/2)
+                Assert.Fail($"Max request time to long. Maybe update cache is synchronous\n\n{message}");
+            
+            if (_log[0].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [0] element of log\n\n{message}");
+            
+            if (_log[1].Event != StartUpdateValue)
+                Assert.Fail($"StartUpdate must be in [1] element of log\n\n{message}");
+
+            if (_log[2].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [2] element of log\n\n{message}");
+            
+            if (_log[3].Event != StopUpdateValue)
+                Assert.Fail($"StopUpdate must be in [3] element of log\n\n{message}");
+            
+            if (_log.Count(l => l.Event == StartUpdateValue) != 1)
+                Assert.Fail($"Not one StartUpdate element in log\n\n{message}");
+            
+            if (_log.Count(l => l.Event == StopUpdateValue) != 1)
+                Assert.Fail($"Not one StopUpdate element in log\n\n{message}");
+            
+            if (_log[logCount-1].Event != SecondValueInCache)
+                Assert.Fail($"SecondValue must be int [last] element in log\n\n{message}");
+            
+            Assert.Pass(message);
+        }
+        
+        [Test]
+        [Order(2)]
+        public void OneReadWithOneUpdate()
+        {
+            _log = new List<TestLogElement>();
+            IReadOnlyDictionary<int, int> firstValue = new Dictionary<int, int>
+            {
+                { 0, 1 },
+                { 1, tsNow },
+            };
+            _updateCacheDelay = TimeSpan.FromMilliseconds(3000);
+            
+            _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
+            
+            GenerateThreads(TestThreadOneRead, 200);
+            
+            // Check log
+            var message = $"Need handle check!!!\n {string.Join("\n", _log.Select(e => e))}";
+            var logCount = _log.Count;
+            if (logCount != 5)
+                Assert.Fail($"Log of events is not full\n\n{message}");
+            
+            if (_log[0].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [0] element of log\n\n{message}");
+            
+            if (_log[1].Event != StartUpdateValue)
+                Assert.Fail($"StartUpdate must be in [1] element of log\n\n{message}");
+            
+            if (_log[2].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [2] element of log\n\n{message}");
+            
+            if (_log[3].Event != StopUpdateValue)
+                Assert.Fail($"StopUpdate must be in [3] element of log\n\n{message}");
+            
+            if (_log[4].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [4] element of log\n\n{message}");
+            
+            Assert.Pass(message);
+        }
+        
+        [Test]
+        [Order(3)]
+        public void InfinityReadWithoutUpdate()
+        {
+            _log = new List<TestLogElement>();
+            _maxRequestTime = TimeSpan.MinValue;
+            
+            IReadOnlyDictionary<int, int> firstValue = new Dictionary<int, int>
+            {
+                { 0, 1 },
+                { 1, tsNow },
+            };
+            
+            _cache.Set("firstCacheKey", firstValue, 5);
+            
+            GenerateThreads(TestThreadInfinityRead, 200);
+            
+            // Check log
+            var message = $"Need handle check!!!\n {string.Join("\n", _log.Select(e => e))}";
+            var logCount = _log.Count;
+            if (logCount != 2)
+                Assert.Fail($"Log of events is not full\n\n{message}");
+            
+            if (_maxRequestTime > _updateCacheDelay/2)
+                Assert.Fail($"Max request time to long. Maybe update cache is synchronous\n\n{message}");
+            
+            if (_log[0].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [0] element of log\n\n{message}");
+            
+            if (_log[1].Event != NullValueInCache)
+                Assert.Fail($"Null must be in [1] element of log\n\n{message}");
+            
+            Assert.Pass(message);
+        }
+        
+        private void TestThreadOneRead()
+        {
+            var threadName = Thread.CurrentThread.Name;
+            if (!_cache.TryGet("firstCacheKey", out IReadOnlyDictionary<int, int> value))
+            {
+                AppendLog($"{threadName}. Not found value in cache");
+                return;
+            }
+            
+            for (int i = 1; i < 2000; i++)
+            {
+                Thread.Sleep(5);
+
+                var differentValue = _cache.Get<IReadOnlyDictionary<int, int>>("firstCacheKey");
                 
-                value.Should().BeEquivalentTo(_firstValue, $"Value in cache not equivalent to FirstValue");
+                if (value == null)
+                {
+                    AppendLog($"{threadName}. Value in cache is null");
+                    continue;
+                }
+
+                if (CompareCacheValues(_firstValue, value))
+                {
+                    AppendLog(FirstValueInCache);
+                    continue;
+                }
+                
+                if (CompareCacheValues(_secondValue, value))
+                {
+                    AppendLog(SecondValueInCache);
+                    continue;
+                }
+
+                AppendLog($"Undefined element in cache. Element: {value}");
             }
         }
 
-        private void UpdateCache(ICacheEntry entry)
+        private void TestThreadInfinityRead()
         {
-            Thread.Sleep(new TimeSpan(0,0,0,1));
+            var timer = new Stopwatch();
             
-            IReadOnlyDictionary<int, IList<int>> newValue = new Dictionary<int, IList<int>>
+            var threadName = Thread.CurrentThread.Name;
+            timer.Restart();
+            if (!_cache.TryGet("firstCacheKey", out IReadOnlyDictionary<int, int> value))
             {
-                { 0, new List<int> {1,2,3,4,5}},
-                { 1, new List<int> {1,2,3,4,5}},
-                { 2, new List<int> {1,2,3,4,5}},
-                { 3, new List<int> {1,2,3,4,5}},
-                { 4, new List<int> {1,2,3,4,5}},
-                { 5, new List<int> {1,2,3,4,5}},
-                { 6, new List<int> {1,2,3,4,5}},
-                { 7, new List<int> {1,2,3,4,5}},
-                { 8, new List<int> {1,2,3,4,5}},
-                { 9, new List<int> {1,2,3,4,5}},
-            }; 
+                timer.Stop();
+                SelectMaxReqiestTime(timer.Elapsed);
+                AppendLog($"{threadName}. Not found value in cache");
+                return;
+            }
+            timer.Stop();
+            SelectMaxReqiestTime(timer.Elapsed);
             
-            entry.UpdateValue(newValue);
+            for (int i = 1; i < 2000; i++)
+            {
+                Thread.Sleep(5);
+
+                timer.Restart();
+                value = _cache.Get<IReadOnlyDictionary<int, int>>("firstCacheKey");
+                timer.Stop();
+                SelectMaxReqiestTime(timer.Elapsed);
+
+                if (value == null)
+                {
+                    AppendLog(NullValueInCache);
+                    continue;
+                }
+
+                if (CompareCacheValues(_firstValue, value))
+                {
+                    AppendLog(FirstValueInCache);
+                    continue;
+                }
+                
+                if (CompareCacheValues(_secondValue, value))
+                {
+                    AppendLog(SecondValueInCache);
+                    continue;
+                }
+
+                AppendLog($"Undefined element in cache. Element: {value}");
+            }
+        }
+
+        private object UpdateCache()
+        {
+            Dictionary<int, int> secondValue = new Dictionary<int, int>
+            {
+                { 10, tsNow },
+                { 11, 10 },
+                { 12, 20 },
+            };
+            AppendLog(StartUpdateValue);
+            
+            Thread.Sleep(_updateCacheDelay);
+            
+            AppendLog(StopUpdateValue);
+            
+            return secondValue;
+        }
+
+        private bool CompareCacheValues(IReadOnlyDictionary<int, int> reference, IReadOnlyDictionary<int, int> value)
+        {
+            if (value.Count != reference.Count)
+                return false;
+
+            foreach (var key in value.Keys)
+            {
+                if (!reference.ContainsKey(key))
+                    return false;
+
+                if (value[key] != reference[key])
+                    return false;
+            }
+
+            return true;
+        }
+
+        private void GenerateThreads(Action action, int count)
+        {
+            var threads = new List<Thread>();
+            for (int i = 0; i < count; i++)
+            {
+                var thread = new Thread(() => action());
+                thread.Name = "t_" + i;
+                thread.Start();
+                threads.Add(thread);
+            }
+
+            foreach (var thread in threads)
+            {
+                thread.Join();
+            }
+        }
+        
+        private void AppendLog(string s)
+        {
+            lock (_locker)
+            {
+                var count = _log.Count;
+                if (count == 0)
+                {
+                    _log.Add(new TestLogElement(s));
+                    return;
+                }
+                
+                if (_log[count-1].Event == s)
+                {
+                    _log[count-1].IncrementCount();
+                    return;
+                }
+                
+                _log.Add(new TestLogElement(s));
+            }
+        }
+
+        private void SelectMaxReqiestTime(TimeSpan timeSpan)
+        {
+            lock (_locker)
+            {
+                if (_maxRequestTime < timeSpan)
+                    _maxRequestTime = timeSpan;
+            }
         }
     }
 }
