@@ -10,13 +10,13 @@
         /// </summary>
         /// <param name="key">Cache key</param>
         /// <returns><see cref="ICacheEntry"/> or Null if key not found</returns>
-        ICacheEntry Get(object key);
+        ICacheEntry Get(string key);
         
         /// <summary>
         /// Set <see cref="ICacheEntry"/> in cache by key
         /// </summary>
         /// <param name="key">Cache key</param>
         /// <param name="entry">Cache entry <see cref="ICacheEntry"/></param>
-        void Set(object key, ICacheEntry entry);
+        void Set(string key, ICacheEntry entry);
     }
 }

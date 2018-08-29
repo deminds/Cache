@@ -14,13 +14,13 @@ namespace GH.DD.Cache
         /// <param name="key">Cache key</param>
         /// <typeparam name="TItem">Cast value to this Type</typeparam>
         /// <returns>Value of <see cref="CacheEntry.Value"/>. If key not found will return Null</returns>
-        public static TItem Get<TItem>(this ICache cache, object key)
+        public static TItem Get<TItem>(this ICache cache, string key)
         {
             var entry = cache.Get(key);
             if (entry == null)
                 return default(TItem);
 
-            return (TItem) entry;
+            return (TItem) entry.Value;
         }
 
         /// <summary>
@@ -30,7 +30,7 @@ namespace GH.DD.Cache
         /// <param name="key">Cache key</param>
         /// <param name="value">Cache value</param>
         /// <returns>True if cache contains key</returns>
-        public static bool TryGet(this ICache cache, object key, out object value)
+        public static bool TryGet(this ICache cache, string key, out object value)
         {
             var entry = cache.Get(key);
             if (entry == null)
@@ -39,13 +39,13 @@ namespace GH.DD.Cache
                 return false;
             }
 
-            value = entry;
+            value = entry.Value;
             return true;
         }
 
         /// <inheritdoc cref="TryGet"/>
         /// <typeparam name="TItem">Cast value to this Type</typeparam>
-        public static bool TryGet<TItem>(this ICache cache, object key, out TItem value)
+        public static bool TryGet<TItem>(this ICache cache, string key, out TItem value)
         {
             var entry = cache.Get(key);
             if (entry == null)
@@ -54,7 +54,7 @@ namespace GH.DD.Cache
                 return false;
             }
 
-            value = (TItem) entry;
+            value = (TItem) entry.Value;
             return true;
         }
 
@@ -64,7 +64,7 @@ namespace GH.DD.Cache
         /// <param name="cache">Cache instance</param>
         /// <param name="key">Cache key</param>
         /// <param name="value">Cache value</param>
-        public static void Set(this ICache cache, object key, object value)
+        public static void Set(this ICache cache, string key, object value)
         {
             var entry = new CacheEntry(key, value, new CacheEntryOptions());
             cache.Set(key, entry);
@@ -77,16 +77,23 @@ namespace GH.DD.Cache
         /// <param name="key">Cache key</param>
         /// <param name="value">Cache value</param>
         /// <param name="ttl">Ttl for cache entry <see cref="CacheEntryOptions.Ttl"/></param>
-        public static void Set(this ICache cache, object key, object value, TimeSpan ttl)
+        public static void Set(this ICache cache, string key, object value, TimeSpan ttl)
         {
             var entryOptions = new CacheEntryOptions()
             {
-                Ttl = ttl
+                Ttl = ttl,
             };
             
             var entry = new CacheEntry(key, value, entryOptions);
             
             cache.Set(key, entry);
+        }
+
+        /// <inheritdoc cref="Set(GH.DD.Cache.ICache,string,object,TimeSpan)"/>
+        /// <param name="ttlSeconds">Ttl for cache entry in seconds/></param>
+        public static void Set(this ICache cache, string key, object value, int ttlSeconds)
+        {
+            cache.Set(key, value, TimeSpan.FromSeconds(ttlSeconds));
         }
         
         /// <summary>
@@ -96,21 +103,28 @@ namespace GH.DD.Cache
         /// <param name="key">Cache key</param>
         /// <param name="value">Cache value</param>
         /// <param name="ttl">Ttl for cache entry <see cref="CacheEntryOptions.Ttl"/></param>
-        /// <param name="beforeDeleteCallback">Callback for execute after <see cref="ttl"/> expired</param>
-        /// <param name="isAutoDeleted">If is True then cache entry will be remove after <see cref="ttl"/> expired</param>
-        public static void Set(this ICache cache, object key, object value, TimeSpan ttl,
-            Action<ICacheEntry> beforeDeleteCallback, bool isAutoDeleted = true)
+        /// <param name="updateDataCallback">Callback for execute after <see cref="ttl"/> expired</param>
+        public static void Set(this ICache cache, string key, object value, TimeSpan ttl,
+            Func<object> updateDataCallback)
         {
             var entryOptions = new CacheEntryOptions()
             {
                 Ttl = ttl,
-                BeforeDeleteCallback = beforeDeleteCallback,
-                IsAutoDeleted = isAutoDeleted
+                UpdateDataCallback = updateDataCallback,
+                IsAutoDeleted = false
             };
             
             var entry = new CacheEntry(key, value, entryOptions);
             
             cache.Set(key, entry);
+        }
+
+        /// <inheritdoc cref="Set(GH.DD.Cache.ICache,string,object,TimeSpan)"/>
+        /// <param name="ttlSeconds">Ttl for cache entry in seconds/></param>
+        public static void Set(this ICache cache, string key, object value, int ttlSeconds,
+            Func<object> updateDataCallback)
+        {
+            cache.Set(key, value, TimeSpan.FromSeconds(ttlSeconds), updateDataCallback);
         }
 
         /// <summary>
@@ -122,7 +136,7 @@ namespace GH.DD.Cache
         /// <param name="options"><see cref="CacheEntryOptions"/> specified for <see cref="CacheEntry"/> if it not in Cache yet</param>
         /// <typeparam name="TItem">Type of Cache value</typeparam>
         /// <returns>Value of cache casted to <see cref="TItem"/></returns>
-        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric, CacheEntryOptions options)
+        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric, CacheEntryOptions options)
         {
             if (cache.TryGet<TItem>(key, out var value))
                 return value;
@@ -144,8 +158,7 @@ namespace GH.DD.Cache
         /// <param name="ttl">Ttl for cache entry <see cref="CacheEntryOptions.Ttl"/></param>
         /// <typeparam name="TItem">Cast value to this Type</typeparam>
         /// <returns>Value of cache casted to <see cref="TItem"/></returns>
-        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric,
-            TimeSpan ttl)
+        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric, TimeSpan ttl)
         {
             var options = new CacheEntryOptions()
             {
@@ -155,6 +168,13 @@ namespace GH.DD.Cache
             return cache.GetOrCreate(key, fabric, options);
         }
 
+        /// <inheritdoc cref="GetOrCreate{TItem}(GH.DD.Cache.ICache,string,System.Func{TItem},TimeSpan)"/>
+        /// <param name="ttlSeconds">Ttl for cache entry in seconds/></param>
+        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric, int ttlSeconds)
+        {
+            return cache.GetOrCreate(key, fabric, TimeSpan.FromSeconds(ttlSeconds));
+        }
+
         /// <summary>
         /// Get Cache value if key exist and cast it to <see cref="TItem"/>. Or create cache entry
         /// </summary>
@@ -162,21 +182,28 @@ namespace GH.DD.Cache
         /// <param name="key">Cache key</param>
         /// <param name="fabric">Fabric for build Cache value</param>
         /// <param name="ttl">Ttl for cache entry <see cref="CacheEntryOptions.Ttl"/></param>
-        /// <param name="beforeDeleteCallback">Callback for execute after <see cref="ttl"/> expired</param>
-        /// <param name="isAutoDeleted">If is True then cache entry will be remove after <see cref="ttl"/> expired</param>
+        /// <param name="updateDataCallback">Callback for execute after <see cref="ttl"/> expired</param>
         /// <typeparam name="TItem">Cast value to this Type</typeparam>
         /// <returns>Value of cache casted to <see cref="TItem"/></returns>
-        public static TItem GetOrCreate<TItem>(this ICache cache, object key, Func<TItem> fabric,
-            TimeSpan ttl, Action<ICacheEntry> beforeDeleteCallback, bool isAutoDeleted = true)
+        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
+            TimeSpan ttl, Func<object> updateDataCallback)
         {
             var options = new CacheEntryOptions()
             {
                 Ttl = ttl,
-                BeforeDeleteCallback = beforeDeleteCallback,
-                IsAutoDeleted = isAutoDeleted
+                UpdateDataCallback = updateDataCallback,
+                IsAutoDeleted = false 
             };
             
             return cache.GetOrCreate(key, fabric, options);
+        }
+
+        /// <inheritdoc cref="GetOrCreate{TItem}(GH.DD.Cache.ICache,string,System.Func{TItem},TimeSpan, Func{object})"/>
+        /// <param name="ttlSeconds">Ttl for cache entry in seconds/></param>
+        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
+            int ttlSeconds, Func<object> updateDataCallback)
+        {
+            return cache.GetOrCreate(key, fabric, TimeSpan.FromSeconds(ttlSeconds), updateDataCallback);
         }
     }
 }

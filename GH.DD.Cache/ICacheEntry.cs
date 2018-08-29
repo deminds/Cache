@@ -1,11 +1,13 @@
-﻿namespace GH.DD.Cache
+﻿using System.Threading.Tasks;
+
+namespace GH.DD.Cache
 {
     public interface ICacheEntry
     {
         /// <summary>
         /// Key of cache
         /// </summary>
-        object Key { get; }
+        string Key { get; }
         
         /// <summary>
         /// Value of cache
@@ -26,19 +28,8 @@
         bool IsExpired();
 
         /// <summary>
-        /// Set new value in <see cref="CacheEntry"/>
+        /// Execute <see cref="CacheEntryOptions.UpdateDataCallback"/> in separate Task and update Value
         /// </summary>
-        /// <param name="value">New value</param>
-        void UpdateValue(object value);
-
-        /// <summary>
-        /// Execute <see cref="CacheEntryOptions.BeforeDeleteCallback"/> in separate Task
-        /// </summary>
-        void ExecuteBeforeDeleteCallback();
-        
-        /// <summary>
-        /// Execute <see cref="CacheEntryOptions.AfterDeleteCallback"/> in separate Task
-        /// </summary>
-        void ExecuteAfterDeleteCallback();
+        Task ExecuteUpdateDataCallback();
     }
 }

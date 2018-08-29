@@ -18,16 +18,9 @@ namespace GH.DD.Cache
         public bool IsAutoDeleted { set; get; } = true;
         
         /// <summary>
-        /// Callback <see cref="BeforeDeleteDelegate"/> will be run after <see cref="Ttl"/> expire and before remove cache entry
+        /// Callback <see cref="UpdateDataCallback"/> will be run after <see cref="Ttl"/> expire and before remove cache entry
         /// Default is Null
         /// </summary>
-        public Action<ICacheEntry> BeforeDeleteCallback { set; get; } = null;
-        
-        /// <summary>
-        /// Callback <see cref="AfterDeleteDelegate"/> will be run after <see cref="Ttl"/> expire and after remove cache entry.
-        /// If <see cref="IsAutoDeleted"/> is false then cache entry will not be remove.
-        /// Default is Null
-        /// </summary>
-        public Action<ICacheEntry> AfterDeleteCallback { set; get; } = null;
+        public Func<object> UpdateDataCallback { set; get; } = null;
     }
 }
