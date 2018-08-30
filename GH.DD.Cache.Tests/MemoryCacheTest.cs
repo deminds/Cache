@@ -14,6 +14,8 @@ namespace GH.DD.Cache.Tests
         private const string NullValueInCache = "Null value in cache";
         private const string StartUpdateValue = "Start update value";
         private const string StopUpdateValue = "Stop update value";
+        private const string StartGcMessage = "Start GC";
+        private const string StopGcMessage = "Stop GC";
         
         private int tsNow;
         private MemoryCache _cache;
@@ -65,7 +67,8 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
             
-            GenerateThreads(TestThreadInfinityRead, 200);
+            var threads = RunThreads(TestThreadInfinityRead, 200);
+            JoinThreads(threads);
             
             // Check log
             var message = $"Need handle check!!!\nMax Request Time: {_maxRequestTime.TotalMilliseconds}ms\n\n" +
@@ -103,9 +106,11 @@ namespace GH.DD.Cache.Tests
         
         [Test]
         [Order(2)]
-        public void OneReadWithOneUpdate()
+        public void OneReadWithTwoUpdate()
         {
             _log = new List<TestLogElement>();
+            _maxRequestTime = TimeSpan.MinValue;
+            
             IReadOnlyDictionary<int, int> firstValue = new Dictionary<int, int>
             {
                 { 0, 1 },
@@ -115,13 +120,31 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
             
-            GenerateThreads(TestThreadOneRead, 200);
+            var threads = RunThreads(TestThreadOneRead, 200);
+            Thread.Sleep(10500);
+            
+            AppendLog(StartGcMessage);
+            
+            GC.GetTotalMemory(false);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            GC.Collect();
+            GC.GetTotalMemory(true);
+            
+            AppendLog(StopGcMessage);
+            
+            JoinThreads(threads);
             
             // Check log
-            var message = $"Need handle check!!!\n {string.Join("\n", _log.Select(e => e))}";
+            var message = $"Need handle check!!!\nMax Request Time: {_maxRequestTime.TotalMilliseconds}ms\n\n" +
+                          $"{string.Join("\n", _log.Select(e => e))}";
             var logCount = _log.Count;
-            if (logCount != 5)
+            if (logCount != 13)
                 Assert.Fail($"Log of events is not full\n\n{message}");
+            
+            if (_maxRequestTime > _updateCacheDelay/2)
+                Assert.Fail($"Max request time to long. Maybe update cache is synchronous\n\n{message}");
             
             if (_log[0].Event != FirstValueInCache)
                 Assert.Fail($"FirstValue must be in [0] element of log\n\n{message}");
@@ -137,6 +160,30 @@ namespace GH.DD.Cache.Tests
             
             if (_log[4].Event != FirstValueInCache)
                 Assert.Fail($"FirstValue must be in [4] element of log\n\n{message}");
+            
+            if (_log[5].Event != StartGcMessage)
+                Assert.Fail($"StartGC must be in [5] element of log\n\n{message}");
+            
+            if (_log[6].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [6] element of log\n\n{message}");
+            
+            if (_log[7].Event != StopGcMessage)
+                Assert.Fail($"StopGC must be in [7] element of log\n\n{message}");
+            
+            if (_log[8].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [8] element of log\n\n{message}");
+            
+            if (_log[9].Event != StartUpdateValue)
+                Assert.Fail($"StartUpdate must be in [9] element of log\n\n{message}");
+            
+            if (_log[10].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [10] element of log\n\n{message}");
+            
+            if (_log[11].Event != StopUpdateValue)
+                Assert.Fail($"StopUpdate must be in [11] element of log\n\n{message}");
+            
+            if (_log[12].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [12] element of log\n\n{message}");
             
             Assert.Pass(message);
         }
@@ -156,10 +203,12 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5);
             
-            GenerateThreads(TestThreadInfinityRead, 200);
+            var threads = RunThreads(TestThreadInfinityRead, 200);
+            JoinThreads(threads);
             
             // Check log
-            var message = $"Need handle check!!!\n {string.Join("\n", _log.Select(e => e))}";
+            var message = $"Need handle check!!!\nMax Request Time: {_maxRequestTime.TotalMilliseconds}ms\n\n" +
+                          $"{string.Join("\n", _log.Select(e => e))}";
             var logCount = _log.Count;
             if (logCount != 2)
                 Assert.Fail($"Log of events is not full\n\n{message}");
@@ -178,18 +227,28 @@ namespace GH.DD.Cache.Tests
         
         private void TestThreadOneRead()
         {
+            var timer = new Stopwatch();
+            
             var threadName = Thread.CurrentThread.Name;
+            timer.Restart();
             if (!_cache.TryGet("firstCacheKey", out IReadOnlyDictionary<int, int> value))
             {
+                timer.Stop();
+                SelectMaxReqiestTime(timer.Elapsed);
                 AppendLog($"{threadName}. Not found value in cache");
                 return;
             }
+            timer.Stop();
+            SelectMaxReqiestTime(timer.Elapsed);
             
-            for (int i = 1; i < 2000; i++)
+            for (int i = 1; i < 3500; i++)
             {
                 Thread.Sleep(5);
 
+                timer.Restart();
                 var differentValue = _cache.Get<IReadOnlyDictionary<int, int>>("firstCacheKey");
+                timer.Stop();
+                SelectMaxReqiestTime(timer.Elapsed);
                 
                 if (value == null)
                 {
@@ -294,7 +353,7 @@ namespace GH.DD.Cache.Tests
             return true;
         }
 
-        private void GenerateThreads(Action action, int count)
+        private IList<Thread> RunThreads(Action action, int count)
         {
             var threads = new List<Thread>();
             for (int i = 0; i < count; i++)
@@ -305,6 +364,12 @@ namespace GH.DD.Cache.Tests
                 threads.Add(thread);
             }
 
+            return threads;
+
+        }
+
+        private void JoinThreads(IList<Thread> threads)
+        {
             foreach (var thread in threads)
             {
                 thread.Join();
