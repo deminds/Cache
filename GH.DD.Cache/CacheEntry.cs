@@ -83,7 +83,10 @@ namespace GH.DD.Cache
                 Run(_options.UpdateDataCallback)
                 .ContinueWith(
                 t => {
-                    UpdateValue(t.Result);
+                    if (t.IsFaulted)
+                        _isRunningBeforeDeleteCallback = false;
+                    else
+                        UpdateValue(t.Result);
                 });
         }
 

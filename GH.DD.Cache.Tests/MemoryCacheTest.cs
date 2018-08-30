@@ -67,7 +67,7 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
             
-            var threads = RunThreads(TestThreadInfinityRead, 200);
+            var threads = RunThreads(TestThreadInfinityRead, 200, 2000, 5);
             JoinThreads(threads);
             
             // Check log
@@ -120,7 +120,7 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5, UpdateCache);
             
-            var threads = RunThreads(TestThreadOneRead, 200);
+            var threads = RunThreads(TestThreadOneRead, 200, 3500, 5);
             Thread.Sleep(10500);
             
             AppendLog(StartGcMessage);
@@ -203,7 +203,7 @@ namespace GH.DD.Cache.Tests
             
             _cache.Set("firstCacheKey", firstValue, 5);
             
-            var threads = RunThreads(TestThreadInfinityRead, 200);
+            var threads = RunThreads(TestThreadInfinityRead, 200, 2000, 5);
             JoinThreads(threads);
             
             // Check log
@@ -225,7 +225,63 @@ namespace GH.DD.Cache.Tests
             Assert.Pass(message);
         }
         
-        private void TestThreadOneRead()
+        [Test]
+        [Order(4)]
+        public void InfinityReadWithExceptionInUpdate()
+        {
+            _log = new List<TestLogElement>();
+            _maxRequestTime = TimeSpan.MinValue;
+            
+            IReadOnlyDictionary<int, int> firstValue = new Dictionary<int, int>
+            {
+                { 0, 1 },
+                { 1, tsNow },
+            };
+            _updateCacheDelay = TimeSpan.FromMilliseconds(3000);
+            
+            _cache.Set("firstCacheKey", firstValue, 5, UpdateCacheWithException);
+            
+            var threads = RunThreads(TestThreadInfinityRead, 200, 1800, 5);
+            JoinThreads(threads);
+            
+            // Check log
+            var message = $"Need handle check!!!\nMax Request Time: {_maxRequestTime.TotalMilliseconds}ms\n\n" +
+                          string.Join("\n", _log.Select(e => e));
+            var logCount = _log.Count;
+            if (logCount != 7)
+                Assert.Fail($"Log of events is not full\n\n{message}");
+            
+            if (_maxRequestTime > _updateCacheDelay/2)
+                Assert.Fail($"Max request time to long. Maybe update cache is synchronous\n\n{message}");
+            
+            if (_log[0].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [0] element of log\n\n{message}");
+            
+            if (_log[1].Event != StartUpdateValue)
+                Assert.Fail($"StartUpdate must be in [1] element of log\n\n{message}");
+
+            if (_log[2].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [2] element of log\n\n{message}");
+            
+            if (_log[3].Event != StopUpdateValue)
+                Assert.Fail($"StopUpdate must be in [3] element of log\n\n{message}");
+            
+            if (_log[4].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [4] element of log\n\n{message}");
+            
+            if (_log[4].Count > 500)
+                Assert.Fail($"Start next update callback after fail previous update is to long\n\n{message}");
+            
+            if (_log[5].Event != StartUpdateValue)
+                Assert.Fail($"StartUpdate must be in [5] element of log\n\n{message}");
+
+            if (_log[6].Event != FirstValueInCache)
+                Assert.Fail($"FirstValue must be in [6] element of log\n\n{message}");
+            
+            Assert.Pass(message);
+        }
+        
+        private void TestThreadOneRead(int interationCount, int iterationDelayMs)
         {
             var timer = new Stopwatch();
             
@@ -241,9 +297,9 @@ namespace GH.DD.Cache.Tests
             timer.Stop();
             SelectMaxReqiestTime(timer.Elapsed);
             
-            for (int i = 1; i < 3500; i++)
+            for (int i = 1; i < interationCount; i++)
             {
-                Thread.Sleep(5);
+                Thread.Sleep(iterationDelayMs);
 
                 timer.Restart();
                 var differentValue = _cache.Get<IReadOnlyDictionary<int, int>>("firstCacheKey");
@@ -271,8 +327,8 @@ namespace GH.DD.Cache.Tests
                 AppendLog($"Undefined element in cache. Element: {value}");
             }
         }
-
-        private void TestThreadInfinityRead()
+        
+        private void TestThreadInfinityRead(int interationCount, int iterationDelayMs)
         {
             var timer = new Stopwatch();
             
@@ -288,9 +344,9 @@ namespace GH.DD.Cache.Tests
             timer.Stop();
             SelectMaxReqiestTime(timer.Elapsed);
             
-            for (int i = 1; i < 2000; i++)
+            for (int i = 1; i < interationCount; i++)
             {
-                Thread.Sleep(5);
+                Thread.Sleep(iterationDelayMs);
 
                 timer.Restart();
                 value = _cache.Get<IReadOnlyDictionary<int, int>>("firstCacheKey");
@@ -335,6 +391,17 @@ namespace GH.DD.Cache.Tests
             
             return secondValue;
         }
+        
+        private object UpdateCacheWithException()
+        {
+            AppendLog(StartUpdateValue);
+            
+            Thread.Sleep(_updateCacheDelay);
+            
+            AppendLog(StopUpdateValue);
+            
+            throw new ArgumentException("Exception during update cache");
+        }
 
         private bool CompareCacheValues(IReadOnlyDictionary<int, int> reference, IReadOnlyDictionary<int, int> value)
         {
@@ -353,12 +420,12 @@ namespace GH.DD.Cache.Tests
             return true;
         }
 
-        private IList<Thread> RunThreads(Action action, int count)
+        private IList<Thread> RunThreads(Action<int, int> action, int threadCount, int iterationsCount, int iterationDelayMs)
         {
             var threads = new List<Thread>();
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < threadCount; i++)
             {
-                var thread = new Thread(() => action());
+                var thread = new Thread(() => action(iterationsCount, iterationDelayMs));
                 thread.Name = "t_" + i;
                 thread.Start();
                 threads.Add(thread);
