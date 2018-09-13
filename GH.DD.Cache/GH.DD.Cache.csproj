@@ -1,6 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>0.0.1</Version>
+    <Version>0.0.3</Version>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <authors>deminds</authors>
+    <PackageId>GH.DD.Cache</PackageId>
+    <PackageProjectUrl>https://github.com/deminds/Cache</PackageProjectUrl>
+    <PackageLicenseUrl>https://raw.githubusercontent.com/deminds/Cache/master/LICENSE</PackageLicenseUrl>
+    <Title>GH.DD.Cache</Title>
+    <Description>Is simple cache for dotnet with feature update element in foreground.</Description>
   </PropertyGroup>
 </Project>

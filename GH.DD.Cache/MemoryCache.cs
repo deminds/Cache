@@ -2,7 +2,6 @@
 
 namespace GH.DD.Cache
 {
-    // TODO: readme
     /// <summary>
     /// Object of cache placed in RAM
     /// </summary>

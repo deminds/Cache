@@ -60,6 +60,7 @@ namespace GH.DD.Cache
 
         /// <summary>
         /// Create or update cache entry with default values of <see cref="CacheEntryOptions"/>
+        /// Will never expired. Updated only manually
         /// </summary>
         /// <param name="cache">Cache instance</param>
         /// <param name="key">Cache key</param>
@@ -173,37 +174,6 @@ namespace GH.DD.Cache
         public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric, int ttlSeconds)
         {
             return cache.GetOrCreate(key, fabric, TimeSpan.FromSeconds(ttlSeconds));
-        }
-
-        /// <summary>
-        /// Get Cache value if key exist and cast it to <see cref="TItem"/>. Or create cache entry
-        /// </summary>
-        /// <param name="cache">Cache instance</param>
-        /// <param name="key">Cache key</param>
-        /// <param name="fabric">Fabric for build Cache value</param>
-        /// <param name="ttl">Ttl for cache entry <see cref="CacheEntryOptions.Ttl"/></param>
-        /// <param name="updateDataCallback">Callback for execute after <see cref="ttl"/> expired</param>
-        /// <typeparam name="TItem">Cast value to this Type</typeparam>
-        /// <returns>Value of cache casted to <see cref="TItem"/></returns>
-        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
-            TimeSpan ttl, Func<object> updateDataCallback)
-        {
-            var options = new CacheEntryOptions()
-            {
-                Ttl = ttl,
-                UpdateDataCallback = updateDataCallback,
-                IsAutoDeleted = false 
-            };
-            
-            return cache.GetOrCreate(key, fabric, options);
-        }
-
-        /// <inheritdoc cref="GetOrCreate{TItem}(GH.DD.Cache.ICache,string,System.Func{TItem},TimeSpan, Func{object})"/>
-        /// <param name="ttlSeconds">Ttl for cache entry in seconds/></param>
-        public static TItem GetOrCreate<TItem>(this ICache cache, string key, Func<TItem> fabric,
-            int ttlSeconds, Func<object> updateDataCallback)
-        {
-            return cache.GetOrCreate(key, fabric, TimeSpan.FromSeconds(ttlSeconds), updateDataCallback);
         }
     }
 }
