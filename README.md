@@ -1,5 +1,5 @@
 # Cache
-Is simple cache for dotnet with feature update element in foreground.
+Is simple cache for dotnet with feature async update element in background.
 
 ## Install
 Install throught [nuget](https://www.nuget.org/packages/GH.DD.Cache/)
@@ -36,7 +36,7 @@ namespace MyApp
 
 ### Update cache entry throught callback
 As first you need `Set` value with callback function.  
-If Ttl on cache entry expired then next request will start callback update cache and will return old cache value.   
+If Ttl on cache entry expired then next request to cache element will start callback update cache and will return old cache value.   
 New cache value will available after callback finish
 
 ```c#
@@ -53,7 +53,7 @@ namespace MyApp
         {
             var cache = new MemoryCache();
 
-            // You can warm you cache instean set "initial value" 
+            // You can warm you cache instead set "initial value" 
             // or wait for first TryGet request for start update callback
             cache.Set(CacheKey, "initial value", CacheTtlSeconds, UpdateCacheValue);
 
@@ -68,7 +68,7 @@ namespace MyApp
         
         private string UpdateCacheValue()
         {
-            return "SomeValue";
+            return "Some new value";
         }
     }
 }

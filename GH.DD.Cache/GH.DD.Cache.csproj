@@ -9,6 +9,6 @@
     <PackageProjectUrl>https://github.com/deminds/Cache</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.githubusercontent.com/deminds/Cache/master/LICENSE</PackageLicenseUrl>
     <Title>GH.DD.Cache</Title>
-    <Description>Is simple cache for dotnet with feature update element in foreground.</Description>
+    <Description>Is simple cache for dotnet with feature async update element in background.</Description>
   </PropertyGroup>
 </Project>
